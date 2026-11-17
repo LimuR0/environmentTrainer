@@ -1,0 +1,68 @@
+{
+  "id": "04-glibc-old-os",
+  "order": 4,
+  "title": "第 4 关 · 系统冲突：这二进制是给新系统编的，你的系统太老",
+  "summary": "vendor/tool 是 CI 在 Ubuntu 24.04 上编译的产物，直接拷进了这台 Ubuntu 22.04。运行时报 `GLIBC_2.38 not found` —— 这不是缺库，是宿主的 C 运行时版本太低。仓库里有源码，你得让它在当前系统上重新长出来。",
+  "category": "os",
+  "category_label": "系统冲突",
+  "symptom": "$ ./run.sh\n./vendor/tool: /lib/aarch64-linux-gnu/libc.so.6:\n  version `GLIBC_2.38' not found (required by ./vendor/tool)",
+  "objectives": [
+    "用 ldd / objdump / strings 确认这个二进制要求的 glibc 版本",
+    "确认本机 glibc 版本（ldd --version），并判断升级系统不现实",
+    "用仓库里的源码在本机重新编译（make）",
+    "让 ./run.sh 跑通并输出 TOOL OK: v1.4"
+  ],
+  "diagnose": [
+    "ldd --version | head -1",
+    "ls -la vendor/ src/ bin/ 2>/dev/null",
+    "objdump -T vendor/tool 2>/dev/null | grep -o 'GLIBC_2\\.[0-9]*' | sort -u | tail -5",
+    "cat Makefile",
+    "cat run.sh"
+  ],
+  "hints": [
+    "`GLIBC_2.38 not found` 不是缺文件，是系统 libc 太旧：Ubuntu 22.04 是 glibc 2.35，24.04 才是 2.39。",
+    "确认一下：ldd --version 看本机；objdump -T vendor/tool | grep GLIBC_ 看它要什么版本。这两个对不上就是根因。",
+    "在容器里不可能升级 libc。正确做法是用源码重新编译：make build 会生成 build/tool。",
+    "编译出来的 build/tool 依赖的是本机 glibc 2.35，可以跑。但 run.sh 还指着 vendor/tool，把它改成 build/tool。",
+    "另一种等价做法：make build && cp build/tool vendor/tool（覆盖那个新系统的产物）。两种都能过。"
+  ],
+  "solution": [
+    "# 1. 定位：二进制要 glibc 2.38，本机只有 2.35",
+    "ldd --version | head -1                                   # 2.35",
+    "objdump -T vendor/tool | grep -o 'GLIBC_2\\.[0-9]*' | sort -u | tail -1   # GLIBC_2.38",
+    "",
+    "# 2. 结论：系统比二进制老，升级系统不现实 → 用源码在本机重编译",
+    "cat Makefile        # 已有 build 目标",
+    "make build          # gcc -O2 -o build/tool src/tool.c",
+    "",
+    "# 3. 让启动脚本用本机产物",
+    "sed -i 's#./vendor/tool#./build/tool#' run.sh",
+    "",
+    "# 4. 验证",
+    "./run.sh            # TOOL OK: v1.4",
+    "objdump -T build/tool | grep -o 'GLIBC_2\\.[0-9]*' | sort -u   # 最高 2.35 及以下",
+    "",
+    "核心：二进制和系统是绑定的。“换个二进制”和“换个系统”之间，先选成本低的那条；有源码永远优先重编译。"
+  ],
+  "points": 130,
+  "workdir": "/work",
+  "judge_timeout": 180,
+  "image": "envtrainer/level-04-glibc-old-os:latest",
+  "tool": "make",
+  "tool_label": "编译 / 链接",
+  "platform_notes": {
+    "macos": "macOS 没有 glibc，对应概念是 libSystem/dyld；查依赖用 otool -L，报错形如 dyld: Library not loaded。",
+    "windows": "对应概念是 MSVC 运行时（vcruntime140.dll 等），查依赖用 dumpbin /dependents，缺 DLL 就是同类问题。",
+    "linux": "本关就是 Linux 场景：ldd --version 看本机、objdump -T 看二进制要求，版本对不上就重编译。"
+  },
+  "method": {
+    "rule": "二进制和系统是绑定的；先确认版本差，再选成本最低的路。",
+    "steps": [
+      "报错里出现 version `GLIBC_x.y' not found 就是符号版本不够",
+      "ldd --version 看本机，objdump -T 或 strings 看二进制要求",
+      "三个选项：换二进制（找旧构建）、换系统（容器/VM）、重编译",
+      "有源码就优先重编译 —— 成本最低、最可控",
+      "重编译后确认产物依赖的最高 GLIBC 版本 ≤ 本机，再跑功能验证"
+    ]
+  }
+}

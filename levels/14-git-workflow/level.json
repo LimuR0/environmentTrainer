@@ -1,0 +1,80 @@
+{
+  "id": "14-git-workflow",
+  "order": 14,
+  "title": "第 14 关 · Git：配身份、合分支、清掉误提交的依赖目录",
+  "summary": "仓库里有三个毛病叠在一起：没配提交身份（一 commit 就报错）、feature/login 和 main 改了同两个文件（合并必冲突）、有人把 node_modules 提交进了版本库（加 .gitignore 也不管用）。",
+  "category": "meta",
+  "category_label": "版本控制",
+  "tool": "git",
+  "tool_label": "git",
+  "symptom": "$ git commit -m \"merge\"\nAuthor identity unknown\n*** Please tell me who you are.\nRun\n  git config --global user.email \"you@example.com\"\n  git config --global user.name \"Your Name\"\nfatal: unable to auto-detect email address\n\n$ git merge feature/login\nauto-merging src/login.js\nCONFLICT (content): Merge conflict in src/login.js\nAutomatic merge failed; fix conflicts and then commit the result.\n\n$ git ls-files | grep node_modules | head -2\nnode_modules/left-pad/index.js\nnode_modules/left-pad/package.json",
+  "objectives": [
+    "配好 user.name / user.email（这是 Git 的硬性前提）",
+    "把 feature/login 合进 main，并解决 src/login.js 的冲突",
+    "冲突要「合起来」而不是「二选一」：login() 和 health() 都得留下",
+    "把 node_modules 从索引里移除，再让 .gitignore 生效",
+    "最后让 git status 干净"
+  ],
+  "diagnose": [
+    "git status -sb",
+    "git log --oneline --graph --all | head -12",
+    "git config --get user.name; git config --get user.email",
+    "git ls-files | grep -c node_modules"
+  ],
+  "hints": [
+    "先按报错把身份配上：`git config --global user.name \"你的名字\"` 和 `git config --global user.email \"you@example.com\"`。不配这个连 merge 的提交都做不了。",
+    "`git status` 会告诉你现在能不能直接 merge、有哪些未跟踪文件、哪些是冲突文件。",
+    "合并：`git merge feature/login`。冲突了不要慌 —— 打开文件，找 `<<<<<<<` / `=======` / `>>>>>>>` 这三行标记。",
+    "冲突解决不是砍掉一边：上面是 main 的 health()，下面是分支的 login()，两个函数都要保留，把三行标记删掉。",
+    "node_modules 已经被跟踪了，光写 .gitignore 没用，要先移出索引：`git rm -r --cached node_modules`，再加规则 `node_modules/`。",
+    "最后 `git add -A && git commit`，然后 `git status` 应该干净。"
+  ],
+  "solution": [
+    "# 1. 配身份（一次配好，全局生效）",
+    "git config --global user.name \"Your Name\"",
+    "git config --global user.email \"you@example.com\"",
+    "",
+    "# 2. 先看清现状",
+    "git status",
+    "git log --oneline --graph --all",
+    "",
+    "# 3. 合并（会冲突）",
+    "git merge feature/login",
+    "git status                  # both modified: src/login.js, README.md",
+    "",
+    "# 4. 解决冲突：两个函数都留，删掉 <<<<<<< ======= >>>>>>> 这三行",
+    "vim src/login.js            # greet + login + health 并存",
+    "vim README.md               # 两个功能都写上",
+    "",
+    "# 5. 把误提交的依赖移出版本库（关键：加 .gitignore 之前必须先 rm --cached）",
+    "git rm -r --cached node_modules",
+    "echo 'node_modules/' >> .gitignore",
+    "",
+    "# 6. 收尾",
+    "git add -A",
+    "git commit -m \"merge: feature/login + 清理 node_modules\"",
+    "git status                  # 干净",
+    "",
+    "核心：git 的「未跟踪 / 已跟踪 / 已忽略」是三种状态，.gitignore 只影响未跟踪文件；已经提交过的东西必须先 git rm --cached。冲突是内容合并，不是选边站。"
+  ],
+  "method": {
+    "rule": "Git 的每个报错都指向一个具体状态；先看 status，再动手。",
+    "steps": [
+      "报 identity unknown → 先配 user.name / user.email，这是一切提交的前提",
+      "合并冲突 → 打开冲突文件，把 <<<<<<< ======= >>>>>>> 之间两边的内容都留下",
+      "想忽略却被跟踪 → .gitignore 只对未跟踪文件生效，先 git rm -r --cached",
+      "任何一步拿不准就先 git status / git log --graph 看清现状，别猜",
+      "收尾用 git status 确认工作区干净，再决定要不要 push"
+    ]
+  },
+  "platform_notes": {
+    "macos": "git 来自 Xcode CLT；配置文件在 ~/.gitconfig。建议顺手配 core.autocrlf=input 和 core.editor。",
+    "windows": "Git for Windows 自带 git bash；注意 core.autocrlf=true 会把换行转成 CRLF，跨平台项目里容易变成整文件 diff。",
+    "linux": "apt install git 即可；~/.gitconfig 是用户级配置，仓库级在 .git/config。"
+  },
+  "points": 130,
+  "workdir": "/work/app",
+  "judge_timeout": 120,
+  "image": "envtrainer/level-14-git:latest",
+  "vscode": true
+}

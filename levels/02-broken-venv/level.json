@@ -1,0 +1,63 @@
+{
+  "id": "02-broken-venv",
+  "order": 2,
+  "title": "第 2 关 · 搬家搬坏的虚拟环境",
+  "summary": "/work/tool 是一个从别的机器 / 别的路径复制过来的虚拟环境。python 还能跑，但 pip 一执行就报 bad interpreter —— 因为脚本第一行的解释器路径还指着老路径 /tmp/tool。",
+  "objectives": [
+    "定位 tool/bin/pip 等脚本里残留的 /tmp/tool 路径",
+    "把虚拟环境改成 /work/tool 自洽（可执行脚本 shebang、pyvenv.cfg、activate）",
+    "使 ./tool/bin/pip --version 能正常运行，且 sys.prefix 指向 /work/tool"
+  ],
+  "hints": [
+    "先复现：cd /work && ./tool/bin/pip --version —— 报 bad interpreter: /tmp/tool/bin/python: no such file or directory。",
+    "用 head -n 1 tool/bin/pip 看 shebang；用 grep -rn \"/tmp/tool\" tool/ 把残留路径全找出来。",
+    "最省事的修法：sed -i 's#/tmp/tool#/work/tool#g' tool/bin/* tool/pyvenv.cfg，如果有 activate 系列脚本也一起改。",
+    "如果改完 python 起不来，检查 tool/pyvenv.cfg 里的 home 是否指向真实存在的 /usr/local/bin。",
+    "终极办法永远是重建：python -m venv tool2 && ./tool2/bin/pip install --no-index --find-links /opt/wheels click==8.1.7，然后 mv tool2 tool —— 但本关要求你先把『修』这条路走通。"
+  ],
+  "points": 100,
+  "workdir": "/work",
+  "judge_timeout": 120,
+  "image": "envtrainer/level-02-broken-venv:latest",
+  "category": "meta",
+  "category_label": "环境迁移",
+  "symptom": "$ ./tool/bin/pip --version\nbash: ./tool/bin/pip: cannot execute: required file not found\n\n# 但 ./tool/bin/python 却能跑 —— 因为它是指向系统 python 的软链接",
+  "diagnose": [
+    "head -n 1 tool/bin/pip",
+    "grep -rn '/tmp/tool' tool/bin tool/pyvenv.cfg",
+    "./tool/bin/python -c 'import sys; print(sys.prefix)'"
+  ],
+  "solution": [
+    "# 1. 看 shebang：脚本第一行还指着旧路径",
+    "head -n 1 tool/bin/pip          # #!/tmp/tool/bin/python",
+    "",
+    "# 2. 找出所有残留路径",
+    "grep -rn '/tmp/tool' tool/bin tool/pyvenv.cfg",
+    "",
+    "# 3. 批量改成本机路径",
+    "sed -i 's#/tmp/tool#/work/tool#g' tool/bin/* tool/pyvenv.cfg",
+    "",
+    "# 4. 验证虚拟环境自洽",
+    "./tool/bin/pip --version",
+    "./tool/bin/python -c 'import sys; print(sys.prefix)'   # /work/tool",
+    "",
+    "核心：虚拟环境不是可随意搬运的文件夹，它内部写死了绝对路径。要交付环境，交 requirements.txt / lock 文件 / Dockerfile，而不是 .venv 目录。"
+  ],
+  "tool": "pip",
+  "tool_label": "pip / venv",
+  "platform_notes": {
+    "macos": "虚拟环境里写死的是 /Users/你的名字/...，换台机器或换个目录搬过去就失效 —— 这就是本关的故障原理。",
+    "windows": "Windows 的 venv 在 Scripts\\ 下（不是 bin/），pip.exe 里嵌的是 C:\\... 绝对路径，拷贝到别的盘就废。",
+    "linux": "bin/ 下写死 /home/you/...。要修就改 shebang 和 pyvenv.cfg，或者干脆重建一个。"
+  },
+  "method": {
+    "rule": "环境目录不可搬运；要交付的是清单，不是文件夹。",
+    "steps": [
+      "报错里出现 bad interpreter / No such file 基本就是路径问题",
+      "grep 出所有硬编码的绝对路径（脚本 shebang、pyvenv.cfg 的 home）",
+      "先判断：修路径能救就修，救不了就重建（重建通常更快更稳）",
+      "长期方案：交 requirements.txt / lock / Dockerfile，绝不交 .venv",
+      "验证 sys.prefix 和 pip --version 都指向新位置"
+    ]
+  }
+}

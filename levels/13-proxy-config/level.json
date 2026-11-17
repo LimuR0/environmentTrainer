@@ -1,0 +1,91 @@
+{
+  "id": "13-proxy-config",
+  "order": 13,
+  "title": "第 13 关 · 代理配置：这台机器只能通过代理出网",
+  "summary": "容器没有直接的外网出口，同一网络里有一个正向代理。curl 和 pip 都在超时，你得配好代理 —— 而且配置要活过重开 shell，否则下次还是连不上。",
+  "category": "os",
+  "category_label": "网络环境",
+  "tool": "proxy",
+  "tool_label": "HTTP 代理",
+  "symptom": "$ curl -I https://pypi.org/simple/\ncurl: (6) Could not resolve host: pypi.org\n\n$ pip3 install -r requirements.txt\nERROR: Could not find a version that satisfies the requirement requests==2.31.0\n  (Retrying ...)\n\n$ ip route\n172.20.0.0/16 dev eth0 proto kernel scope link src 172.20.0.2",
+  "objectives": [
+    "判断这是「没有出口」还是「DNS 坏了」",
+    "找到同网络里的代理服务（容器名就是主机名）",
+    "让 curl 和 pip 都走代理",
+    "把代理配置持久化，重开 shell 仍然生效"
+  ],
+  "diagnose": [
+    "ip route; cat /etc/resolv.conf",
+    "getent hosts proxy || echo '解析不到 proxy'",
+    "env | grep -i proxy || echo '没有任何代理变量'",
+    "curl -sS --max-time 8 https://pypi.org/simple/ 2>&1 | head -3"
+  ],
+  "hints": [
+    "先分清两种失败：`Could not resolve host` 是 DNS 没结果，`Connection timed out` 是路由不通。这里两个都会遇到。",
+    "这个容器只有内网地址，没有默认网关 —— 说明出口被收走了。企业网里通常就是靠代理出网。",
+    "同一网络里有别的容器，容器名可以直接当域名用。`getent hosts proxy` 看能不能解析到它。",
+    "临时验证：`export https_proxy=http://proxy:8888 http_proxy=http://proxy:8888`，然后 `curl -I https://pypi.org/simple/` 应该 200。",
+    "持久化（关键）：写进 `~/.bashrc`，或者只给 pip 配 `pip3 config set global.proxy http://proxy:8888`。判题是开新 shell 跑的。",
+    "注意大小写：很多工具只认小写 `http_proxy`，有些只认大写；HTTPS 要走 `HTTPS_PROXY`，光配 HTTP 代理访问 https 会失败。"
+  ],
+  "solution": [
+    "# 1. 确认是「没有出口」而不是「域名写错」",
+    "ip route                 # 只有内网网段，没有 default via",
+    "getent hosts proxy       # 同网络的代理容器能解析到",
+    "",
+    "# 2. 临时验证代理可用",
+    "export http_proxy=http://proxy:8888",
+    "export https_proxy=http://proxy:8888",
+    "curl -I https://pypi.org/simple/     # HTTP/2 200",
+    "",
+    "# 3. 持久化：写进 shell 配置（判题会开新 shell）",
+    "cat >> ~/.bashrc <<'EOF'",
+    "export http_proxy=http://proxy:8888",
+    "export https_proxy=http://proxy:8888",
+    "export no_proxy=localhost,127.0.0.1",
+    "EOF",
+    "source ~/.bashrc",
+    "",
+    "# 4. 装包并验证",
+    "pip3 install -r requirements.txt",
+    "python3 app.py --selftest",
+    "",
+    "核心：代理是「网络环境」的一部分，配在环境变量里。注意三点 —— 大小写都要配、HTTPS 单独配、no_proxy 别忘了本机，而且必须持久化而不是只 export 在当次终端。"
+  ],
+  "method": {
+    "rule": "连不上外网先分三类：DNS、路由、代理；能解析但连不上就是出口问题。",
+    "steps": [
+      "先分清报错：Could not resolve host 是 DNS，Connection timed out 是路由，ProxyError 才是代理",
+      "看路由表和 DNS 配置，确认这台机器有没有默认网关",
+      "有代理就走代理：http_proxy / https_proxy 都要设，大小写统一",
+      "把本机和内网加进 no_proxy，避免自己人走代理绕一圈",
+      "配置写进 shell 配置文件并验证（新开 shell 再试一次）"
+    ]
+  },
+  "platform_notes": {
+    "macos": "系统代理在「系统设置 → 网络 → 代理」，但终端程序不一定读它；shell 里 export http_proxy 更可靠。Homebrew 装包要单独配 HOMEBREW_* 变量。",
+    "windows": "PowerShell 用 $env:HTTPS_PROXY=\"http://...\"，长期用 setx；Git for Windows 还要 git config --global http.proxy。",
+    "linux": "本关就是 Linux 场景：容器内 export + 写 ~/.bashrc；系统级可以写 /etc/environment，但对 systemd 服务无效，要用 drop-in。"
+  },
+  "points": 130,
+  "workdir": "/work",
+  "judge_timeout": 240,
+  "image": "envtrainer/level-13-proxy:latest",
+  "vscode": false,
+  "sidecars": [
+    {
+      "name": "proxy",
+      "image": "envtrainer/sidecar-tinyproxy:latest",
+      "context": "sidecar",
+      "egress": true,
+      "command": [
+        "tinyproxy",
+        "-d",
+        "-c",
+        "/etc/tinyproxy/tinyproxy.conf"
+      ]
+    }
+  ],
+  "skippable": true,
+  "skip_reason": "这关需要容器能访问 pypi.org。如果你的网络环境连不上外网（或者公司网络不允许），可以跳过，后面关卡不受影响。"
+}

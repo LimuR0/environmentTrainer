@@ -1,0 +1,67 @@
+{
+  "id": "05-arch-mismatch",
+  "order": 5,
+  "title": "第 5 关 · 架构冲突：你下的是 x86 的预编译库",
+  "summary": "vendor/libmath.so 是从 release 页面直接下载的预编译库，但你的机器是 ARM（也可能是反过来）。check.sh 一跑就告诉你 `incompatible architecture`。仓库里有 C 源码，本地编一份对的架构就行。",
+  "category": "arch",
+  "category_label": "架构冲突",
+  "symptom": "$ ./check.sh\n库架构 : X86-64\n本机   : aarch64\n✗ incompatible architecture: 这个 .so 是给 X86-64 编的，本机是 aarch64\n  release 页面上只有 x86_64 的构建（以及 aarch64 的源码包）",
+  "objectives": [
+    "用 uname -m 和 readelf -h 判断本机架构与预编译库架构是否一致",
+    "理解 ELF 的 e_machine 字段决定了一个二进制能不能在本机加载",
+    "用 src/mathlib.c 在本机编译出正确的 .so",
+    "让 ./check.sh 输出 MATH OK 4.0000"
+  ],
+  "diagnose": [
+    "uname -m",
+    "readelf -h vendor/libmath.so | head -20",
+    "file vendor/libmath.so",
+    "cat Makefile",
+    "./check.sh"
+  ],
+  "hints": [
+    "先看两边架构：uname -m 是本机，readelf -h vendor/libmath.so 里的 Machine 是库的架构。两者不一致就是根因。",
+    "release 页面只提供了 x86_64 的预编译库，源码包在 src/ 里 —— 交叉架构时源码是你的救命选项。",
+    "编共享库：gcc -O2 -fPIC -shared -o build/libmath.so src/mathlib.c（Makefile 里已经写好了）。",
+    "把编好的库放到 vendor/libmath.so，或者改 check.sh 里的路径。",
+    "验证：./check.sh 应输出 MATH OK 4.0000（magic_avg 对 1,2,3,4,10 的结果是 4）。"
+  ],
+  "solution": [
+    "# 1. 对比架构：库是 X86-64，本机是 aarch64",
+    "uname -m                                     # aarch64",
+    "readelf -h vendor/libmath.so | grep Machine  # Machine: Advanced Micro Devices X86-64",
+    "",
+    "# 2. 架构不一致的二进制，换什么库都救不了，只能换二进制",
+    "make lib                                     # gcc -O2 -fPIC -shared -o build/libmath.so src/mathlib.c",
+    "",
+    "# 3. 用本机编出来的替换掉那份 release 产物",
+    "cp build/libmath.so vendor/libmath.so",
+    "",
+    "# 4. 验证",
+    "readelf -h vendor/libmath.so | grep Machine  # Machine: AArch64",
+    "./check.sh                                   # MATH OK 4.0000",
+    "",
+    "核心：`file` / `uname -m` / `readelf -h` 是排查架构问题的三件套。架构不对时，报错可能是“找不到文件 / 段错误 / 无法加载”，都别被它骗了。"
+  ],
+  "points": 130,
+  "workdir": "/work",
+  "judge_timeout": 180,
+  "image": "envtrainer/level-05-arch-mismatch:latest",
+  "tool": "make",
+  "tool_label": "编译 / 链接",
+  "platform_notes": {
+    "macos": "Apple Silicon 上跑 x86 程序有 Rosetta 2 兜底，file 会显示 x86_64；brew 装的是 arm64 版。想强制看真实架构用 arch -arm64 命令。",
+    "windows": "ARM64 Windows 有 x64 模拟层；x86 / x64 / ARM64 三套二进制要分清，dumpbin /headers 看 machine 字段。",
+    "linux": "uname -m + readelf -h 是标准动作；多架构发行版用 dpkg --add-architecture 或在容器里 --platform 指定。"
+  },
+  "method": {
+    "rule": "架构不对时，报错会骗人（可能是“找不到文件”或段错误）。",
+    "steps": [
+      "uname -m 看本机，file / readelf -h 看目标文件",
+      "两者不一致就是根因，不必再查库和权限",
+      "选路：下对应架构的包、从源码重编、或用模拟层（Rosetta / QEMU）",
+      "重编后确认 ELF 的 Machine 字段正确",
+      "跑功能验证，别只看“能执行”"
+    ]
+  }
+}

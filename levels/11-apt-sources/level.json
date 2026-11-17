@@ -1,0 +1,71 @@
+{
+  "id": "11-apt-sources",
+  "order": 11,
+  "title": "第 11 关 · apt：手写源文件漏了一个字段，整台机器装不上软件",
+  "summary": "有人照着教程手写 /etc/apt/sources.list，只写了地址和发行版代号，漏掉最后的组件字段（main）。apt 认为这行格式不合法，整个源列表读不出来，之后任何 apt-get install 都失败。",
+  "category": "os",
+  "category_label": "系统包管理",
+  "tool": "apt",
+  "tool_label": "apt / dpkg",
+  "symptom": "$ apt-get update\nE: Malformed entry 1 in sources file /etc/apt/sources.list (Component)\nE: The list of sources could not be read.\n\n$ apt-get install -y cowsay\nE: Unable to locate package cowsay",
+  "objectives": [
+    "读懂 Malformed entry ... (Component) 指的是少了哪一段",
+    "知道一行 deb 的完整结构：类型 地址 发行版代号 组件",
+    "补全源文件并刷新索引",
+    "装上 cowsay 并让它输出一句话"
+  ],
+  "diagnose": [
+    "cat /etc/apt/sources.list",
+    "apt-get update 2>&1 | tail -5",
+    "apt-cache policy cowsay"
+  ],
+  "hints": [
+    "报错里的 (Component) 就是缺的那一段。一行 deb 的格式是：`deb 地址 发行版代号 组件`，四段缺一不可。",
+    "Debian 12 的组件是 main（还有 contrib / non-free）。补上就能被 apt 认。",
+    "改完必须 apt-get update 一次，索引才会重建 —— 不刷新等于没改。",
+    "然后 apt-get install -y cowsay 装上。cowsay 在 /usr/games 下，可能需要绝对路径调用。",
+    "断网时镜像里有离线包：/opt/debs 里的 deb 可以直接装。"
+  ],
+  "solution": [
+    "# 1. 读报错：(Component) 说明缺组件字段",
+    "cat /etc/apt/sources.list",
+    "# deb http://deb.debian.org/debian bookworm        <- 只有三段",
+    "",
+    "# 2. 补全四段：类型 地址 发行版代号 组件",
+    "cat > /etc/apt/sources.list <<'EOF'",
+    "deb http://deb.debian.org/debian bookworm main",
+    "deb http://deb.debian.org/debian bookworm-updates main",
+    "deb http://deb.debian.org/debian-security bookworm-security main",
+    "EOF",
+    "",
+    "# 3. 刷新索引（不刷新等于没改）",
+    "apt-get update",
+    "",
+    "# 4. 安装并验证",
+    "apt-get install -y cowsay",
+    "/usr/games/cowsay hello",
+    "",
+    "# 断网兜底：apt-get install -y /opt/debs/cowsay_*.deb",
+    "",
+    "核心：apt 是「索引 + 下载」两段式。源文件格式错 → 索引读不出来 → 后面所有包都“不存在”。报错里的 E: 行就是唯一线索。"
+  ],
+  "points": 120,
+  "workdir": "/work",
+  "judge_timeout": 240,
+  "image": "envtrainer/level-11-apt-sources:latest",
+  "platform_notes": {
+    "macos": "macOS 没有 apt，对应的是 Homebrew：brew install / brew upgrade，源的问题对应 brew update 报错。",
+    "windows": "Windows 没有 apt，对应的是 winget install / winget upgrade，或 Chocolatey。",
+    "linux": "本关就是 Linux 的 apt。Debian 12 起默认用 deb822 格式的 /etc/apt/sources.list.d/debian.sources，不再是老的 sources.list。"
+  },
+  "method": {
+    "rule": "apt 是「索引 + 下载」两段式；先判断是索引没刷新，还是源本身坏了。",
+    "steps": [
+      "update 报错 → 源地址/代号/组件写错；install 报找不到 → 索引没刷新",
+      "cat 源文件，逐项核对：地址、发行版代号、组件（main/contrib）、keyring",
+      "改完必须 apt-get update 再装，顺序错了会以为没修好",
+      "离线兜底：本地 .deb、apt 缓存、或换可用的镜像",
+      "apt-get check 确认 dpkg 状态干净，没有半安装的包"
+    ]
+  }
+}

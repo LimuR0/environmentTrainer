@@ -1,0 +1,69 @@
+{
+  "id": "09-go-mod-sum",
+  "order": 9,
+  "title": "第 9 关 · Go modules：go.mod 加了依赖，go.sum 没跟上",
+  "summary": "有人在 go.mod 里加了 google/uuid，本地能跑就提交了 —— 但 go.sum 没一起提交。CI 是离线环境，clone 下来 go build 直接报 missing go.sum entry。这是 Go 项目最高频的报错之一。",
+  "category": "version",
+  "category_label": "依赖完整性",
+  "tool": "go",
+  "tool_label": "go mod",
+  "symptom": "$ go build ./...\nmissing go.sum entry for module providing package github.com/google/uuid (imported by example.com/envdemo); to add:\n\tgo mod download github.com/google/uuid\n\n$ ls\ngo.mod  main.go  main_test.go\n",
+  "objectives": [
+    "看懂 missing go.sum entry 到底缺的是什么",
+    "用 go env 确认当前是离线（GOPROXY=off）还是在线",
+    "用 go mod download / go mod tidy 补上 go.sum",
+    "让 go test ./... 通过，并记住 go.mod / go.sum 要一起提交"
+  ],
+  "diagnose": [
+    "go env GOPROXY GOFLAGS GOMODCACHE",
+    "cat go.mod",
+    "ls -la go.sum 2>&1",
+    "go build ./... 2>&1 | head -5"
+  ],
+  "hints": [
+    "报错已经给了下一步：`to add: go mod download github.com/google/uuid`。先想清楚它为什么会缺 —— go.sum 里没有这个模块的校验和。",
+    "go.sum 记录的是每个依赖的哈希，用来防篡改。go.mod 只写“要什么版本”，go.sum 证明“拿到的就是那个东西”。",
+    "补它：`go mod tidy`（按 go.mod 重新解析，补全 go.sum 并清掉用不到的依赖），或者 `go mod download`（只补校验和）。",
+    "镜像里 GOPROXY=off，模块只能来自本地缓存 —— 正好演示离线环境下怎么补 lock 文件。",
+    "验证：go build ./... 和 go test ./... 都要过，go.sum 里能看到 google/uuid。"
+  ],
+  "solution": [
+    "# 1. 看现场：依赖声明在，校验和记录不在",
+    "cat go.mod                      # require github.com/google/uuid v1.6.0",
+    "ls go.sum                       # 不存在",
+    "go env GOPROXY                  # off（离线）",
+    "",
+    "# 2. 重新解析依赖，补全 go.sum（用本地模块缓存，不需要联网）",
+    "go mod tidy",
+    "",
+    "# 3. 如果只想补校验和、不想动依赖树：",
+    "# go mod download",
+    "",
+    "# 4. 验证",
+    "go build ./...",
+    "go test ./...",
+    "go run .                        # ID: xxxxxxxx-xxxx-...",
+    "",
+    "核心：Go 的依赖状态有两份记录 —— go.mod 声明版本，go.sum 记录校验和。改了一边忘了另一边，别人 clone 下来就构建不了。提交时两个文件必须一起提。"
+  ],
+  "points": 120,
+  "workdir": "/work",
+  "judge_timeout": 180,
+  "image": "envtrainer/level-09-go-mod-sum:latest",
+  "platform_notes": {
+    "macos": "brew install go；GOPATH 默认 ~/go，模块缓存在 ~/go/pkg/mod。",
+    "windows": "winget install GoLang.Go；GOPATH 在 %USERPROFILE%\\go，PATH 里要有 %GOPATH%\\bin。",
+    "linux": "发行版自带的 go 版本往往偏旧，建议从 go.dev 下 tar.gz 解到 /usr/local/go 并加 PATH。"
+  },
+  "vscode": true,
+  "method": {
+    "rule": "Go 的依赖状态有 go.mod / go.sum / vendor 三份；报错会告诉你是哪份不对。",
+    "steps": [
+      "读报错关键词：missing go.sum entry / inconsistent vendoring / module lookup disabled",
+      "go env 看 GOFLAGS、GOPROXY、GOMODCACHE，确认现在走哪套机制",
+      "按报错补对应的那一份：go mod tidy / go mod download / go mod vendor",
+      "三份文件（含 go.mod）要一起提交，否则下一个人还会踩",
+      "go test 验证，而不是只看 go build 通过"
+    ]
+  }
+}

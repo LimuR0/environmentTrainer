@@ -1,0 +1,65 @@
+{
+  "id": "01-python-venv",
+  "order": 1,
+  "title": "第 1 关 · Python 依赖冲突：全局环境已被污染",
+  "summary": "机器上全局装的是 Flask 2.0.1，而项目要求 Flask 3.0.3。你要给这个项目建一个独立虚拟环境，让 /work/app.py 的自检跑通。",
+  "objectives": [
+    "在 /work 下创建虚拟环境 .venv",
+    "在 .venv 内按 requirements.txt 安装依赖（flask==3.0.3、requests==2.31.0）",
+    "使 ./.venv/bin/python app.py --selftest 输出 SELFTEST OK"
+  ],
+  "hints": [
+    "先看现场：python -V && python -c \"import flask; print(flask.__version__)\" —— 你会发现全局环境是被别的项目占用的。",
+    "直接跑 python app.py --selftest，把报错读完：ImportError: cannot import name 'DefaultJSONProvider'，这是 Flask 2/3 的差异。",
+    "建虚拟环境：cd /work && python -m venv .venv",
+    "装依赖：./.venv/bin/pip install -r requirements.txt（如果这台机器不能上网，加 --no-index --find-links /opt/wheels 用本地轮子）",
+    "验证：./.venv/bin/python app.py --selftest 应输出 SELFTEST OK，然后点「提交校验」。"
+  ],
+  "points": 100,
+  "workdir": "/work",
+  "judge_timeout": 120,
+  "image": "envtrainer/level-01-python-venv:latest",
+  "category": "version",
+  "category_label": "版本冲突",
+  "symptom": "$ python app.py --selftest\nModuleNotFoundError: No module named 'flask.json.provider'\n\n# 因为全局环境里是 Flask 2.0.1（被别的项目占着），而项目要 Flask 3.x",
+  "diagnose": [
+    "python -V && pwd",
+    "python -c \"import flask; print(flask.__version__)\"",
+    "python app.py --selftest",
+    "pip list 2>/dev/null | head -20"
+  ],
+  "solution": [
+    "# 1. 看清现状：全局被别的项目污染，动它会把别人的项目搞坏",
+    "python -c \"import flask; print(flask.__version__)\"   # 2.0.1",
+    "",
+    "# 2. 给本项目一个独立环境",
+    "cd /work && python -m venv .venv",
+    "",
+    "# 3. 在隔离环境里按锁定版本安装（断网时用本地轮子）",
+    "./.venv/bin/pip install -r requirements.txt",
+    "# 没网时： ./.venv/bin/pip install --no-index --find-links /opt/wheels -r requirements.txt",
+    "",
+    "# 4. 验证",
+    "./.venv/bin/python app.py --selftest    # SELFTEST OK",
+    "",
+    "核心：不要为了修一个项目去改全局环境，隔离比升级更安全。"
+  ],
+  "tool": "pip",
+  "tool_label": "pip / venv",
+  "platform_notes": {
+    "macos": "python3 -m venv .venv && source .venv/bin/activate。brew 装的 Python 可能叫 python3.12，别和系统 /usr/bin/python3 搞混。",
+    "windows": "python -m venv .venv，然后 .venv\\Scripts\\activate（PowerShell 是 .venv\\Scripts\\Activate.ps1）。激活后提示符前面会多 (.venv)。",
+    "linux": "python3 -m venv .venv && source .venv/bin/activate。报 ensurepip 不可用就先 apt install python3-venv。"
+  },
+  "vscode": true,
+  "method": {
+    "rule": "不要为了修一个项目去改全局环境 —— 隔离比升级便宜。",
+    "steps": [
+      "先分清报错类型：ImportError 是没装 / 版本不对，不是语法问题",
+      "看全局环境是谁在用（pip list、谁装的、有没有别的项目依赖）",
+      "给当前项目建独立环境（venv / uv / conda）",
+      "按锁定清单装，而不是手敲包名",
+      "在隔离环境里跑项目自检，确认用的是新环境而不是全局"
+    ]
+  }
+}

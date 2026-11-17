@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Environment Trainer · 装环境实战训练</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/vendor/xterm.css" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.1" fill="#0d1f10"/>
+          <circle cx="12" cy="12" r="7.2" stroke="#0d1f10" stroke-width="1.6" stroke-dasharray="3 3.4"/>
+          <circle cx="12" cy="12" r="10.4" stroke="#0d1f10" stroke-width="1.1" opacity=".55"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <strong>Environment Trainer</strong>
+        <small>一关一个容器 · 通关即销毁 · 下一关自动就绪</small>
+      </div>
+    </div>
+
+    <div class="progress">
+      <div class="progress-meta">
+        <span id="progress-label">第 1 / 2 关</span>
+        <span id="progress-points">0 分</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+    </div>
+
+    <div class="top-actions">
+      <span class="chip" id="env-chip">平台: ?</span>
+      <span class="chip" id="docker-chip">docker: ?</span>
+      <button class="ghost" id="btn-host" title="检查这台机器装好没有">本机环境</button>
+      <button class="ghost" id="btn-reset" title="清空进度并销毁容器">重置进度</button>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <section class="panel left">
+      <div class="level-head">
+        <div class="level-order" id="level-order">01</div>
+        <div class="level-head-text">
+          <span class="tag-row">
+            <span class="tag" id="level-cat">加载中</span>
+            <span class="tag tool" id="level-tool"></span>
+          </span>
+          <h1 id="level-title">加载中…</h1>
+        </div>
+      </div>
+
+      <p class="summary" id="level-summary"></p>
+
+      <div class="block" id="symptom-block" hidden>
+        <div class="block-title">现象（你看到什么）</div>
+        <pre class="symptom" id="level-symptom"></pre>
+      </div>
+
+      <div class="block method-block" id="method-block" hidden>
+        <div class="block-title">这类问题的通用解法 <span class="muted small">不依赖具体关卡</span></div>
+        <div class="method-rule" id="method-rule"></div>
+        <ol class="method-steps" id="method-steps"></ol>
+      </div>
+
+      <h2 class="sec-title">通关目标</h2>
+      <ul class="objectives" id="objectives"></ul>
+
+      <div class="block platform-block" id="platform-block" hidden>
+        <div class="block-title">在你的系统上 <span class="plat-chip" id="platform-name"></span></div>
+        <div class="platform-note" id="platform-note"></div>
+        <details class="plat-others" id="platform-others">
+          <summary>其他系统怎么对应</summary>
+          <div id="platform-other-list"></div>
+        </details>
+      </div>
+
+      <div class="block" id="diagnose-block" hidden>
+        <div class="block-title">先查这些 <span class="muted small">点一下直接在容器里执行</span></div>
+        <div class="cmds" id="diagnose-list"></div>
+      </div>
+
+      <h2 class="sec-title">提示 <span class="muted" id="hint-count"></span></h2>
+      <div class="hints" id="hints"></div>
+      <div class="hint-actions">
+        <button class="ghost small" id="btn-hint">看下一条提示</button>
+        <button class="ghost small" id="btn-hint-all">全部展开</button>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="btn-start">开始本关<span class="arrow">→</span></button>
+        <button class="check" id="btn-check">提交校验</button>
+        <button class="ghost small danger" id="btn-stop">销毁容器</button>
+        <button class="ghost small" id="btn-skip" hidden>跳过本关</button>
+      </div>
+
+      <div class="skip-note" id="skip-note" hidden></div>
+
+      <div class="verdict" id="verdict" hidden>
+        <div class="verdict-head" id="verdict-head"></div>
+        <div class="checks" id="verdict-checks"></div>
+        <details class="raw"><summary>判题原始输出</summary><pre class="verdict-body" id="verdict-body"></pre></details>
+        <div class="solution" id="verdict-solution" hidden>
+          <div class="block-title">参考解法</div>
+          <pre class="solution-body" id="solution-body"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel right">
+      <div class="term-head">
+        <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+        <span class="term-title" id="term-title">sandbox · 未连接</span>
+        <div class="view-tabs">
+          <button class="view-tab active" id="tab-term" data-view="term">终端</button>
+          <button class="view-tab" id="tab-code" data-view="code" hidden>编辑器</button>
+        </div>
+        <span class="spacer"></span>
+        <button class="ghost tiny" id="btn-reconnect">重连终端</button>
+      </div>
+      <div class="term-wrap" id="view-term">
+        <div class="term-placeholder" id="term-placeholder">
+          <div>
+            <div class="ph-big">没有运行中的容器</div>
+            <div>点左侧「开始本关」创建这一关的沙箱<br/>容器就绪后这里会连上容器里的 bash</div>
+          </div>
+        </div>
+        <div id="terminal"></div>
+      </div>
+      <div class="code-wrap" id="view-code" hidden>
+        <div class="code-loading" id="code-loading">编辑器正在启动…（首次需要几秒）</div>
+        <iframe id="code-frame" title="VS Code"></iframe>
+      </div>
+      <div class="term-foot">
+        <span id="term-status">等待容器启动</span>
+        <span class="term-mode" id="term-mode"></span>
+        <span class="spacer"></span>
+        <span class="muted">在左侧点「开始 / 重开本关」后，这里就是容器里的 bash</span>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="drawer-mask" id="host-mask" hidden></div>
+  <aside class="drawer" id="host-drawer" hidden>
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-title">本机环境</div>
+        <div class="drawer-sub" id="host-sub">检测中…</div>
+      </div>
+      <div class="drawer-actions">
+        <button class="ghost tiny" id="host-refresh">重新检测</button>
+        <button class="ghost tiny" id="host-close">关闭</button>
+      </div>
+    </div>
+    <div class="drawer-body" id="host-body"></div>
+  </aside>
+
+  <footer class="logbar">
+    <span class="log-title">事件</span>
+    <div class="log-items" id="log-items"></div>
+  </footer>
+
+</div>
+
+<script src="/vendor/xterm.js"></script>
+<script src="/vendor/xterm-addon-fit.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

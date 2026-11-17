@@ -1,0 +1,68 @@
+{
+  "id": "03-pip-resolver",
+  "order": 3,
+  "title": "第 3 关 · 依赖解析死锁：pip 说这两个包不可能同时装",
+  "summary": "项目锁定 fastapi==0.95.0 + pydantic==2.5.3，但 fastapi 0.95 明确要求 pydantic<2。pip 不会帮你猜，它直接报 ResolutionImpossible。你要读懂报错、判断该动哪一边，再让项目在隔离环境里跑通。",
+  "category": "version",
+  "category_label": "版本冲突",
+  "symptom": "$ ./.venv/bin/pip install -r requirements.txt\nERROR: Cannot install fastapi==0.95.0 and pydantic==2.5.3 because\nthese package versions have conflicting dependencies.\nThe conflict is caused by:\n    The user requested pydantic==2.5.3\n    fastapi 0.95.0 depends on pydantic<2.0.0 and >=1.6.2",
+  "objectives": [
+    "读懂 pip 的 ResolutionImpossible 报错，指出冲突的两方是谁",
+    "判断应该改哪一边：源码用的是 pydantic v2 API（model_dump），所以不能降 pydantic",
+    "修正 requirements.txt，让 fastapi 与 pydantic 2.x 兼容",
+    "在 /work/.venv 里安装成功，并让 ./venv/bin/python app.py --selftest 输出 SELFTEST OK"
+  ],
+  "diagnose": [
+    "cat requirements.txt",
+    "python -c \"import pydantic; print(pydantic.VERSION)\" 2>&1 | tail -1",
+    "grep -n 'model_dump\\|pydantic' app.py"
+  ],
+  "hints": [
+    "先读报错：`The conflict is caused by:` 下面每一行都是一方的约束。这里冲突的是 fastapi 0.95.0（要 pydantic<2.0.0）与 pydantic 2.5.3。",
+    "再看代码：app.py 里用了 item.model_dump()，这是 pydantic v2 的 API，pydantic 1.x 没有。所以正确方向是升级 fastapi，而不是降 pydantic。",
+    "fastapi 从 0.100 起开始支持 pydantic v2。把 requirements.txt 里的 fastapi 改成 0.115.5 试试。",
+    "建环境：cd /work && python -m venv .venv，然后 ./.venv/bin/pip install -r requirements.txt（断网就加 --no-index --find-links /opt/wheels）。",
+    "装完用 ./.venv/bin/pip check 确认没有 broken requirements，再跑 ./.venv/bin/python app.py --selftest。"
+  ],
+  "solution": [
+    "# 1. 先读冲突双方：fastapi 0.95.0 要 pydantic<2，而项目锁了 pydantic 2.5.3",
+    "./.venv/bin/pip install -r requirements.txt     # 直接报 ResolutionImpossible",
+    "",
+    "# 2. 判断该动谁：代码用了 pydantic v2 的 model_dump()，所以 pydantic 不能降",
+    "grep -n model_dump app.py",
+    "sed -i 's/fastapi==0.95.0/fastapi==0.115.5/' requirements.txt",
+    "# 3. 升级 fastapi 到支持 pydantic v2 的版本（0.100 之后才支持）",
+    "sed -i 's/fastapi==0.100.0/fastapi==0.115.5/' requirements.txt",
+    "",
+    "# 4. 在隔离环境里装（/opt/wheels 里有离线轮子）",
+    "python -m venv .venv",
+    "./.venv/bin/pip install --no-index --find-links /opt/wheels -r requirements.txt",
+    "./.venv/bin/pip check      # 没有 broken requirements",
+    "",
+    "# 5. 验证",
+    "./.venv/bin/python app.py --selftest     # SELFTEST OK",
+    "",
+    "核心：resolver 冲突没有“谁对谁错”，只有“约束交集是否为空”。读懂报错里每一方的版本区间，再决定升哪个、降哪个。"
+  ],
+  "points": 120,
+  "workdir": "/work",
+  "judge_timeout": 180,
+  "image": "envtrainer/level-03-pip-resolver:latest",
+  "tool": "pip",
+  "tool_label": "pip",
+  "platform_notes": {
+    "macos": "用 python3 -m pip 而不是裸 pip；brew 环境下裸 pip 可能指向另一个 Python 版本。",
+    "windows": "机器上有多个 Python 时用 py -3 -m pip 明确指定，别指望 pip 一定对。",
+    "linux": "Debian/Ubuntu 的系统 Python 受 PEP 668 保护，pip install 会被拒绝 —— 必须用 venv，不要 --break-system-packages。"
+  },
+  "method": {
+    "rule": "冲突不是谁错了，是约束交集为空；先读区间，再决定动哪一边。",
+    "steps": [
+      "读 resolver 报错：The conflict is caused by 下面每一行都是一个约束",
+      "确认代码实际用了哪一边的 API（决定能不能降级）",
+      "只动一边：升级被卡住的那个，或降级坚持的那个，不要两边同时改",
+      "在隔离环境里重装，避免旧版本残留干扰判断",
+      "pip check 确认没有 broken requirements，再跑项目自检"
+    ]
+  }
+}

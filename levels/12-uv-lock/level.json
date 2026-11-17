@@ -1,0 +1,68 @@
+{
+  "id": "12-uv-lock",
+  "order": 12,
+  "title": "第 12 关 · uv：lock 没跟上 pyproject，CI 装出来的环境是残的",
+  "summary": "项目用 uv 管依赖，本地加了 httpx 却忘记重新 lock。CI 里跑 uv sync --frozen 只按旧 lock 装 —— 环境看着装好了，一跑测试就 ModuleNotFoundError。你要重新生成 lock，再验证 --frozen 能装齐。",
+  "category": "version",
+  "category_label": "锁文件",
+  "tool": "uv",
+  "tool_label": "uv",
+  "symptom": "$ uv lock --check\nerror: The lockfile at `uv.lock` needs to be updated, but `--check` was provided.\n\n$ uv sync --frozen && uv run --no-sync pytest\nInstalled 21 packages\nE   ModuleNotFoundError: No module named 'httpx'\n____________________ test_http_clients_importable ____________________\n    import httpx\nE   ModuleNotFoundError: No module named 'httpx'\n1 error in 0.05s",
+  "objectives": [
+    "用 uv lock --check 判断 lock 与 pyproject 是否一致",
+    "理解 --frozen 的语义：只按 lock 装，绝不替你更新 lock",
+    "重新生成 lock 并同步环境",
+    "让 uv sync --frozen 装齐依赖，uv run --no-sync pytest 通过"
+  ],
+  "diagnose": [
+    "cat pyproject.toml",
+    "uv lock --check 2>&1 | head -5",
+    "grep -c 'name = ' uv.lock",
+    "uv --version"
+  ],
+  "hints": [
+    "先对比两个文件：pyproject 里有 httpx，`grep 'name = \"httpx\"' uv.lock` 却是 0 条。",
+    "`uv lock --check` 就是专门检查这个的（CI 里常跑），不一致会直接报 needs to be updated。",
+    "`uv sync --frozen` 是「只按现有 lock 装，绝不改 lock」。lock 过期时它不报错，只是少装东西 —— 所以测试才炸。",
+    "生成新 lock：`uv lock`（或直接 `uv sync`，它会先更新 lock 再同步环境）。",
+    "验证：uv lock --check 通过；uv sync --frozen 之后 uv run --no-sync pytest 通过；lock 里能看到 httpx。"
+  ],
+  "solution": [
+    "# 1. 看差异：pyproject 有 httpx，lock 里没有",
+    "grep -n httpx pyproject.toml",
+    "grep -c 'name = \"httpx\"' uv.lock     # 0",
+    "uv lock --check                       # needs to be updated",
+    "",
+    "# 2. 重新生成 lock（会重新解析依赖并写入 uv.lock）",
+    "uv lock",
+    "",
+    "# 3. 按 lock 同步环境",
+    "uv sync --frozen",
+    "",
+    "# 4. 验证（--no-sync 是关键：不让 uv 现场补依赖，模拟 CI）",
+    "uv lock --check",
+    "uv run --no-sync pytest -q",
+    "uv run --no-sync python -c \"import httpx; print(httpx.__version__)\"   # 0.27.2",
+    "",
+    "核心：lock 是「可复现」的凭证。--frozen 的意义是逼你先提交 lock —— 它宁可装出残缺环境也不替你改 lock，这正是 CI 该有的严格。"
+  ],
+  "points": 130,
+  "workdir": "/work",
+  "judge_timeout": 240,
+  "image": "envtrainer/level-12-uv-lock:latest",
+  "platform_notes": {
+    "macos": "brew install uv，或 curl -LsSf https://astral.sh/uv/install.sh | sh。",
+    "windows": "winget install --id astral-sh.uv，或 powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"。",
+    "linux": "curl -LsSf https://astral.sh/uv/install.sh | sh 或 pipx install uv。"
+  },
+  "method": {
+    "rule": "lock = 可复现的凭证；改了清单不同步 lock，别人装出来就是残的。",
+    "steps": [
+      "先判断 lock 是否最新：uv lock --check（CI 里常跑）",
+      "理解 --frozen：它只按 lock 装，不会替你更新 lock，所以缺的东西直接没有",
+      "重新生成 lock，再按 lock 同步环境",
+      "CI 用 --frozen 兜底，逼大家提交 lock",
+      "用 --no-sync 跑一次测试，确认环境真的是 lock 装出来的，而不是现场补的"
+    ]
+  }
+}

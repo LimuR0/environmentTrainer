@@ -1,0 +1,67 @@
+{
+  "id": "10-maven-convergence",
+  "order": 10,
+  "title": "第 10 关 · Maven 依赖收敛：同一个库被两个版本拉进来",
+  "summary": "项目显式要 commons-lang3 3.14，而 commons-text 又悄悄带进来 3.12。Maven 默认「最近优先」，不会报错，但 enforcer 的 dependencyConvergence 规则会直接把构建拦下来。你要用 dependencyManagement 把版本钉死。",
+  "category": "version",
+  "category_label": "传递依赖",
+  "tool": "maven",
+  "tool_label": "Maven",
+  "symptom": "$ mvn test\n[ERROR] Rule 0: org.apache.maven.plugins.enforcer.DependencyConvergence failed with message\nDependency convergence error for org.apache.commons:commons-lang3:3.12.0 paths to dependency are:\n+-com.example:envdemo:1.0.0\n  +-org.apache.commons:commons-text:1.10.0\n    +-org.apache.commons:commons-lang3:3.12.0\nand\n+-com.example:envdemo:1.0.0\n  +-org.apache.commons:commons-lang3:3.14.0",
+  "objectives": [
+    "用 mvn dependency:tree 找出 commons-lang3 是从哪几条路径进来的",
+    "理解 Maven 的「最近优先」仲裁规则，以及它为什么不报错",
+    "用 dependencyManagement 统一版本（或 exclusion 排掉传递依赖）",
+    "让 mvn test 通过"
+  ],
+  "diagnose": [
+    "mvn -o -q dependency:tree -Dincludes=org.apache.commons:commons-lang3",
+    "mvn -o -q dependency:tree",
+    "grep -n 'commons' pom.xml",
+    "java -version 2>&1 | head -2"
+  ],
+  "hints": [
+    "`mvn dependency:tree` 里 commons-lang3 会出现两次：一次是你直接声明的 3.14.0，一次是 commons-text 带进来的 3.12.0。",
+    "Maven 不会因为版本不一致就失败，它按「路径最短优先」选一个 —— 这种静默仲裁正是运行时 NoSuchMethodError 的常见来源。",
+    "enforcer 的 dependencyConvergence 规则就是用来把这种静默冲突变成构建失败的，所以现在构建被拦住了。",
+    "解法一：在 <dependencyManagement> 里把 commons-lang3 锁定成 3.14.0（推荐，一处生效全项目）。",
+    "解法二：给 commons-text 加 <exclusion> 排掉它带的 commons-lang3 —— 但这样以后别处再引进来仍然会冲突。",
+    "改完用 mvn -o test 验证（镜像是离线仓库，加 -o 避免去连网）。"
+  ],
+  "solution": [
+    "# 1. 看清冲突：同一个 artifact 两条路径、两个版本",
+    "mvn -o -q dependency:tree -Dincludes=org.apache.commons:commons-lang3",
+    "",
+    "# 2. 在 pom.xml 里加版本仲裁（dependencyManagement 优先级高于传递依赖）",
+    "#    <dependencyManagement><dependencies><dependency>",
+    "#      <groupId>org.apache.commons</groupId><artifactId>commons-lang3</artifactId>",
+    "#      <version>3.14.0</version>",
+    "#    </dependency></dependencies></dependencyManagement>",
+    "",
+    "# 3. 验证",
+    "mvn -o -q dependency:tree -Dincludes=org.apache.commons:commons-lang3   # 只剩 3.14.0",
+    "mvn -o test                                                            # BUILD SUCCESS",
+    "",
+    "核心：Maven 的传递依赖靠「最近优先」静态仲裁，冲突不会报错。dependencyManagement 是唯一能集中钉版本的地方，多模块项目尤其必须写。"
+  ],
+  "points": 150,
+  "workdir": "/work",
+  "judge_timeout": 300,
+  "image": "envtrainer/level-10-maven-convergence:latest",
+  "platform_notes": {
+    "macos": "brew install maven；本地仓库在 ~/.m2/repository。",
+    "windows": "winget install Apache.Maven；本地仓库在 %USERPROFILE%\\.m2\\repository。",
+    "linux": "apt install maven；同样 ~/.m2。离线构建靠的就是这个目录，别随便删。"
+  },
+  "vscode": true,
+  "method": {
+    "rule": "Maven 会静默仲裁版本；不主动暴露，冲突就留到运行时炸。",
+    "steps": [
+      "mvn dependency:tree 看实际解析出来的树（这是仲裁后的结果）",
+      "加 -Dverbose 才看得到被省略掉的冲突版本",
+      "用 dependencyManagement 集中钉版本（一处生效全项目）",
+      "用 enforcer 的 dependencyConvergence 把冲突变成构建失败",
+      "跑测试验证，确认运行时用的就是钉住的那个版本"
+    ]
+  }
+}

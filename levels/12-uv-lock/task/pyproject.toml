@@ -1,0 +1,18 @@
+[project]
+name = "envdemo"
+version = "0.1.0"
+description = "uv 管理的示例项目"
+requires-python = ">=3.11"
+dependencies = [
+    "requests==2.31.0",
+    "rich==13.7.1",
+    "httpx==0.27.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.2.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

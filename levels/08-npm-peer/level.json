@@ -1,0 +1,69 @@
+{
+  "id": "08-npm-peer",
+  "order": 8,
+  "title": "第 8 关 · npm peer 依赖冲突：Material-UI v4 不认 React 18",
+  "summary": "看板项目用的是 React 18，UI 库还停在 @material-ui/core@4 —— 它在 peerDependencies 里写死了 React 16/17。npm 7 以后不再默默忽略，直接 ERESOLVE 拒绝安装。你要读懂 peer 声明，把它迁到 @mui/material v5。",
+  "category": "version",
+  "category_label": "版本冲突",
+  "tool": "npm",
+  "tool_label": "npm",
+  "symptom": "$ npm install\nnpm error code ERESOLVE\nnpm error ERESOLVE unable to resolve dependency tree\nnpm error While resolving: data-dashboard@1.0.0\nnpm error Found: react@18.3.1\nnpm error Could not resolve dependency:\nnpm error peer react@\"^16.8.0 || ^17.0.0\" from @material-ui/core@4.12.4",
+  "objectives": [
+    "用 npm ls / npm explain 看清是谁在要求什么版本",
+    "理解 peerDependencies 与 dependencies 的区别",
+    "把 Material-UI v4 迁到 @mui/material v5（React 18 时代的新包名）",
+    "补齐 @mui/material 要求的 emotion peer 依赖，让 npm run verify 输出 VERIFY OK"
+  ],
+  "diagnose": [
+    "npm ls react",
+    "npm explain @material-ui/core",
+    "node -e \"console.log(require('@material-ui/core/package.json').peerDependencies)\"",
+    "npm view @mui/material peerDependencies"
+  ],
+  "hints": [
+    "报错里 `Found: react@18.3.1` 和 `peer react@^16.8.0 || ^17.0.0` 就是冲突双方：你的 React 太新，那个 UI 库太老。",
+    "peerDependencies 是「我需要宿主环境提供什么版本」，不是普通依赖。库本身不打包 React，它要求外部装的那个版本必须匹配。",
+    "Material-UI 从 v5 起改了包名：@material-ui/core → @mui/material，v5 才正式支持 React 18。",
+    "换包：npm uninstall @material-ui/core，再 npm install @mui/material@5.15.20（离线加 --prefer-offline）。",
+    "装完可能还差 peer：@mui/material 要求 @emotion/react 和 @emotion/styled，一起装上。",
+    "`--legacy-peer-deps` 能让安装通过，但那只是跳过检查，运行时照样可能崩 —— 没解决问题。"
+  ],
+  "solution": [
+    "# 1. 看清冲突双方",
+    "npm ls react                         # 18.3.1",
+    "npm explain @material-ui/core        # peer react@^16.8.0 || ^17.0.0",
+    "",
+    "# 2. Material-UI v5 改了包名，且支持 React 18",
+    "npm uninstall @material-ui/core",
+    "npm install @mui/material@5.15.20 @mui/icons-material@5.15.20",
+    "",
+    "# 3. 补齐 @mui/material 的 peer 依赖",
+    "npm install @emotion/react@11.13.0 @emotion/styled@11.13.0",
+    "",
+    "# 4. 验证",
+    "npm ls --depth=0          # 没有 ELSPROBLEMS / unmet peer",
+    "npm run verify            # VERIFY OK",
+    "",
+    "核心：npm 7+ 把 peer 冲突从“警告”升级成“拒绝安装”。读 Found / Could not resolve 这两行就知道该升级谁；--legacy-peer-deps 只适合临时救火。"
+  ],
+  "points": 130,
+  "workdir": "/work",
+  "judge_timeout": 240,
+  "image": "envtrainer/level-08-npm-peer:latest",
+  "platform_notes": {
+    "macos": "brew 装的 node 在 /opt/homebrew/bin；用 nvm 切版本后记得 npm i -g npm 对齐 npm 版本。",
+    "windows": "npm 实际是 npm.cmd，PowerShell 若报「禁止运行脚本」先 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser。",
+    "linux": "别用 sudo npm i -g（会写坏权限），用 nvm 或 npm config set prefix ~/.npm-global。"
+  },
+  "vscode": true,
+  "method": {
+    "rule": "peer 冲突 = 宿主版本不满足要求；读 Found 和 Could not resolve 两行就够。",
+    "steps": [
+      "读 npm 报错：Found 是现状，Could not resolve 是要求，冲突就在这两行",
+      "npm explain <包> / npm ls 看依赖树里谁要求的",
+      "查这个包的 peer 声明和更新状态（是否已归档、有没有维护分支）",
+      "决定：升级这个包、换等价实现、还是真的降级运行时",
+      "不要用 --legacy-peer-deps 掩盖 —— 那只是跳过检查"
+    ]
+  }
+}

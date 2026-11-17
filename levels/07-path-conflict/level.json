@@ -1,0 +1,70 @@
+{
+  "id": "07-path-conflict",
+  "order": 7,
+  "title": "第 7 关 · 环境变量冲突：机器上有两个 node，命令却用错了那个",
+  "summary": "这台机器里装了两个 Node：一个 apt 装的 18，一个手动装的 20。PATH 的顺序决定了裸敲 `node` 到底是谁 —— 现在指向 18，项目用到的 --env-file 直接报 bad option。你要让新开的 shell 都用上 20。",
+  "category": "env",
+  "category_label": "环境变量冲突",
+  "symptom": "$ ./run.sh\nnode: bad option: --env-file=.env\n\n$ which node\n/usr/bin/node\n$ node -v\nv18.20.4",
+  "objectives": [
+    "用 which / type -a 找出机器上所有的 node，以及 PATH 的搜索顺序",
+    "确认 /opt/node20/bin/node 是 v20，而 /usr/bin/node 是 v18",
+    "让新开的交互 shell 里 `node -v` 就是 v20（写进 ~/.bashrc 或 /etc/profile.d）",
+    "让 ./run.sh 输出 STARTED env-demo on node v20.x"
+  ],
+  "diagnose": [
+    "which -a node; type -a node 2>/dev/null",
+    "echo $PATH | tr ':' '\\n'",
+    "node -v; /opt/node20/bin/node -v",
+    "cat run.sh"
+  ],
+  "hints": [
+    "`type -a node` 会列出所有能匹配到的 node；`which node` 只给第一个 —— 第一个就是 PATH 里最靠前的。",
+    "echo $PATH 看看顺序：/usr/bin 排在 /opt/node20/bin 前面，所以 /usr/bin/node（v18）赢了。",
+    "改 PATH 顺序：export PATH=/opt/node20/bin:$PATH。但这是临时的，新开 shell 就没了。",
+    "写到 ~/.bashrc 里让它长期生效，然后 source ~/.bashrc 或用新 shell 验证。",
+    "验证：node -v 应该是 v20.x，./run.sh 输出 STARTED env-demo on node v20.x。"
+  ],
+  "solution": [
+    "# 1. 找出所有候选，看清 PATH 顺序",
+    "type -a node                    # /usr/bin/node (18) 在前",
+    "echo $PATH | tr ':' '\\n'",
+    "node -v                         # v18.20.4",
+    "/opt/node20/bin/node -v         # v20.x",
+    "",
+    "# 2. 临时修（只对当前 shell 有效）",
+    "export PATH=/opt/node20/bin:$PATH",
+    "node -v                         # v20.x",
+    "",
+    "# 3. 长期修：写进 shell 配置",
+    "echo 'export PATH=/opt/node20/bin:$PATH' >> ~/.bashrc",
+    "source ~/.bashrc",
+    "",
+    "# 4. 验证（新 shell 里也生效）",
+    "bash -ic 'node -v'              # v20.x",
+    "cd /work && ./run.sh            # STARTED env-demo on node v20.x",
+    "",
+    "核心：PATH 是“先找到谁就用谁”。排查环境变量冲突的三件套：which -a、type -a、echo $PATH。临时修用 export，长期修写进 shell 配置。"
+  ],
+  "points": 120,
+  "workdir": "/work",
+  "judge_timeout": 120,
+  "image": "envtrainer/level-07-path-conflict:latest",
+  "tool": "npm",
+  "tool_label": "node / PATH",
+  "platform_notes": {
+    "macos": "zsh 默认读 ~/.zshrc；注意 GUI 启动的应用不读 shell 配置，需要 launchctl setenv。",
+    "windows": "系统属性 → 环境变量，或 setx PATH \"...\"；改完必须重开终端（老终端不会刷新）。",
+    "linux": "交互式非登录 shell 读 ~/.bashrc，登录 shell 读 ~/.profile；systemd 服务两者都不读，要用 Environment=。"
+  },
+  "method": {
+    "rule": "PATH 是先找到谁就用谁；改 PATH 之前先看清有几个候选。",
+    "steps": [
+      "which -a / type -a 列出所有同名命令，而不是只看第一个",
+      "echo $PATH 看目录顺序，判断哪个赢",
+      "临时修 export，长期修写进 shell 配置文件",
+      "改完必须新开 shell 或 source 验证，别被当前会话骗了",
+      "记录清楚改的是哪个文件，方便以后回滚"
+    ]
+  }
+}
