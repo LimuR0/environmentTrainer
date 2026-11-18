@@ -129,6 +129,18 @@ def check_terminal():
     return "pipe"
 
 
+def check_mirrors(refresh=False):
+    from mirrors import load_or_pick, summary
+
+    if refresh:
+        print("  正在探测镜像站延迟…")
+        mirrors = load_or_pick(force=True, log=None)
+    else:
+        mirrors = load_or_pick(force=False, log=None)
+    ok(summary(mirrors))
+    return mirrors
+
+
 def check_levels():
     from levels import LevelStore
 
@@ -175,6 +187,7 @@ def do_check(host="127.0.0.1", port=8181):
     if not good:
         return 1
     docker_ok = check_docker()
+    check_mirrors()
     check_terminal()
     store = check_levels()
     if docker_ok and store:
@@ -200,8 +213,19 @@ def main():
     ap.add_argument("--port", type=int, default=8181)
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--check", action="store_true", help="只做环境自检")
+    ap.add_argument("--mirrors", action="store_true", help="重新探测最快的包镜像源")
     ap.add_argument("--keep-orphans", action="store_true")
     args = ap.parse_args()
+
+    if args.mirrors:
+        from mirrors import load_or_pick, summary
+
+        print("正在探测镜像站…")
+        mirrors = load_or_pick(force=True, log=print)
+        print()
+        print(summary(mirrors))
+        print("已写入 .mirrors.json，下次构建镜像自动生效。")
+        return 0
 
     if args.check:
         return do_check(args.host, args.port)

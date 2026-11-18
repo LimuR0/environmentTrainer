@@ -23,6 +23,28 @@ python start.py --port 9000
 | Linux | `./run.sh` |
 | Windows | `run.bat`，或 PowerShell `.\\run.ps1` |
 
+## 镜像源（自动选最快）
+
+首次构建镜像前会探测 apt / pip / npm / go 几个镜像站的延迟，挑最快的写进 `.mirrors.json`，
+构建时通过 `--build-arg` 注入，容器里的 `sources.list`、`pip.conf`、`.npmrc` 也会跟着换。
+
+```bash
+python start.py --mirrors     # 重新探测（7 天缓存，可随时强制刷新）
+python tools/pick_mirror.py   # 只看探测结果
+python start.py --check       # 自检时会显示当前用的是哪家
+```
+
+实测这台机器上选出来的结果：
+
+```
+apt   aliyun=143ms  huawei=161ms  ustc=190ms  tuna=250ms  official=260ms
+pip   aliyun=158ms  ustc=195ms    tuna=270ms  official=353ms
+npm   npmmirror=245ms             official=434ms
+go    goproxy.cn=138ms            official=472ms
+```
+
+不想要镜像源就删掉 `.mirrors.json`，构建会退回官方源（Dockerfile 里的 ARG 默认为空）。
+
 ## 关卡
 
 | # | 关卡 | 生态 | 要点 |

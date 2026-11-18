@@ -6,6 +6,7 @@
 import subprocess
 import threading
 
+from mirrors import build_args as mirror_build_args
 from platform_util import NO_WINDOW, TEXT_KW, find_docker, run_capture
 
 BUILD_LOCK = threading.Lock()
@@ -60,7 +61,10 @@ def build_image(tag: str, context_dir: str, log=print) -> None:
     """按目录构建镜像；用文件锁串行化，避免并发构建打架。"""
     with BUILD_LOCK:
         log(f"[docker] 构建镜像 {tag} <- {context_dir}")
-        cmd = [docker_bin(), "build", "-t", tag, context_dir]
+        cmd = [docker_bin(), "build", "-t", tag]
+        for k, v in mirror_build_args().items():
+            cmd += ["--build-arg", f"{k}={v}"]
+        cmd.append(context_dir)
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
